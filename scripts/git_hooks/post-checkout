@@ -1,0 +1,29 @@
+#!/bin/sh
+
+# This is a post-checkout git hook which changes version in pom.xml files
+# each time you switch to a new branch.
+# Let's assume usually version appears in pom.xml like this:
+# <version>1.0.1-SNAPSHOT</version>
+# then after the change it would look like this:
+# <version>1.0.1-SNAPSHOT__8d1f3f98</version>
+# It is useful to keep all the changes of pom.xml files
+# in a separate changelist. This way your pom.xml changes will always
+# reside in a separate changelist when you switch between branches.
+
+if [ $3 -eq 1 ]; then
+	# we have a branch checkout (not a file checkout)
+	new_branch=`git symbolic-ref HEAD | sed 's/refs\/heads\///'`
+	# Get program version from pom.xml
+	ver_tag=version
+	branch_id_delimiter=__
+	# calculate unique branch id (first 8 chars of git_sha1(branch_name))
+	branch_id=`echo $new_branch | git hash-object -w --stdin | cut -c1-8` 
+	pom_version=`grep $ver_tag pom.xml | tr -d '\t' | head -1 | sed -e "s,<$ver_tag>\([^<].*\)</$ver_tag>,\1,g"`
+	new_pom_version=`echo $pom_version | tr -d '\n' | tr -d '\r' | awk -F $branch_id_delimiter '{print $1}'`
+	new_pom_version="${new_pom_version}${branch_id_delimiter}${branch_id}"
+	# set new version in pom.xml files
+	mvn versions:set -DnewVersion=$new_pom_version > /dev/null 2>&1
+	if [ $? -eq 0 ]; then
+		find . -name '*.versionsBackup' | xargs rm -f {}\;
+	fi
+fi
