@@ -1,0 +1,17 @@
+#!/bin/sh
+#
+# This pre-commit hook script excludes all pom.xml files from commit changes
+# if they include temporary suffix in <version> tag. This is a precaution script
+# which considers the case when the user has accidentally staged those temp pom.xml
+# files for commit and version there appears in "X.X.X-SNAPSHOT__xxxxxxxx" temporary format.
+# When the script detects such changes in git diff log it will unstage all pom.xml files
+# and proceed with the commit.
+
+git diff --cached | awk '/^\+{3}\ .*pom\.xml/,/^diff/' | egrep '^\+.*__[0-9a-f]{8}<\/version>'
+if [ $? -eq 0 ]; then
+	echo "\nSnapshot versions in your pom.xml files can not be committed with '__xxxxxxxx' suffix."
+	echo "Therefore all pom.xml file changes will be excluded from this commit.\n"
+	# unstage all pom.xml files from current commit
+	find . -name pom.xml | xargs git reset HEAD {}\ >/dev/null 2>&1
+	echo "Commit was successful!\n"
+fi
